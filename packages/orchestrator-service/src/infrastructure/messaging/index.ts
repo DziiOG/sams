@@ -1,1 +1,2 @@
-export const ORCHESTRATOR_MESSAGE_NAMESPACE = 'sams.orchestrator';
+export * from './rabbitmq-dispatch.publisher';
+export * from './rabbitmq-inbound-message.consumer';

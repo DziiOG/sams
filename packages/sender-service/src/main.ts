@@ -1,16 +1,27 @@
 import 'reflect-metadata';
 
-import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+
+import { loadSamsRuntimeConfig } from '@sams/shared';
 
 import { SenderModule } from './infrastructure/nestjs/sender.module';
 
-export async function bootstrap(): Promise<INestApplication> {
-  const app = await NestFactory.create(SenderModule);
+export async function createSenderApp(): Promise<INestApplication> {
+  loadSamsRuntimeConfig();
 
-  await app.listen(process.env.PORT ? Number(process.env.PORT) : 3002);
+  return NestFactory.create(SenderModule);
+}
+
+export async function bootstrap(): Promise<INestApplication> {
+  const runtimeConfig = loadSamsRuntimeConfig();
+  const app = await createSenderApp();
+
+  await app.listen(runtimeConfig.port);
 
   return app;
 }
 
-void bootstrap();
+if (require.main === module) {
+  void bootstrap();
+}

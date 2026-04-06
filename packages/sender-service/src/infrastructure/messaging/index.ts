@@ -1,1 +1,1 @@
-export const SENDER_MESSAGE_NAMESPACE = 'sams.sender';
+export * from './rabbitmq-dispatch.consumer';

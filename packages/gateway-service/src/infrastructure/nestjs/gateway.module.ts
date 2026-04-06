@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
 
-import { RabbitMqConnectionManager, RabbitMqProducer } from '@sams/shared';
+import { loadSamsRuntimeConfig, RabbitMqConnectionManager, RabbitMqProducer } from '@sams/shared';
 
 import { ProcessInboundMessageUseCase } from '../../application/use-cases/process-inbound-message.use-case';
+import { WhatsAppWebhookAdapter } from '../adapters/whatsapp-webhook.adapter';
+import { GATEWAY_RUNTIME_CONFIG, type GatewayRuntimeConfig } from '../config/gateway.tokens';
+import { WhatsAppHmacGuard } from '../guards/whatsapp-hmac.guard';
 import { RabbitMqInboundMessagePublisher } from '../messaging/rabbitmq-inbound-message.publisher';
 import { HealthController } from './health.controller';
 import { WebhookController } from './webhook.controller';
@@ -11,9 +14,14 @@ import { WebhookController } from './webhook.controller';
   controllers: [HealthController, WebhookController],
   providers: [
     {
+      provide: GATEWAY_RUNTIME_CONFIG,
+      useFactory: (): GatewayRuntimeConfig => loadSamsRuntimeConfig(),
+    },
+    {
       provide: RabbitMqConnectionManager,
-      useFactory: (): RabbitMqConnectionManager =>
-        new RabbitMqConnectionManager(process.env.RABBITMQ_URL ?? 'amqp://sams:sams@localhost:5672'),
+      useFactory: (runtimeConfig: GatewayRuntimeConfig): RabbitMqConnectionManager =>
+        new RabbitMqConnectionManager(runtimeConfig.rabbitMqUrl),
+      inject: [GATEWAY_RUNTIME_CONFIG],
     },
     {
       provide: RabbitMqProducer,
@@ -22,12 +30,16 @@ import { WebhookController } from './webhook.controller';
       inject: [RabbitMqConnectionManager],
     },
     RabbitMqInboundMessagePublisher,
+    WhatsAppWebhookAdapter,
+    WhatsAppHmacGuard,
     {
       provide: ProcessInboundMessageUseCase,
       useFactory: (
         publisher: RabbitMqInboundMessagePublisher,
-      ): ProcessInboundMessageUseCase => new ProcessInboundMessageUseCase(publisher),
-      inject: [RabbitMqInboundMessagePublisher],
+        runtimeConfig: GatewayRuntimeConfig,
+      ): ProcessInboundMessageUseCase =>
+        new ProcessInboundMessageUseCase(publisher, runtimeConfig.ownerPhone),
+      inject: [RabbitMqInboundMessagePublisher, GATEWAY_RUNTIME_CONFIG],
     },
   ],
 })

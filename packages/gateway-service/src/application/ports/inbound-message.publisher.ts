@@ -1,5 +1,5 @@
-import type { MessagePrimitives } from '../../domain/message.entity';
+import type { InboundWhatsAppMessageEvent } from '@sams/shared';
 
 export interface InboundMessagePublisher {
-  publishInbound: (message: MessagePrimitives) => Promise<void>;
+  publishInbound: (event: InboundWhatsAppMessageEvent) => Promise<void>;
 }

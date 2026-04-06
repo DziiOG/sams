@@ -1,7 +1,9 @@
 const moduleNameMapper = {
   '^@sams/shared$': '<rootDir>/packages/shared/src/index.ts',
   '^@sams/shared/(.*)$': '<rootDir>/packages/shared/src/$1',
-  '^@sams/gateway-service/(.*)$': '<rootDir>/packages/gateway-service/src/$1'
+  '^@sams/gateway-service/(.*)$': '<rootDir>/packages/gateway-service/src/$1',
+  '^@sams/orchestrator-service/(.*)$': '<rootDir>/packages/orchestrator-service/src/$1',
+  '^@sams/sender-service/(.*)$': '<rootDir>/packages/sender-service/src/$1'
 };
 
 module.exports = {

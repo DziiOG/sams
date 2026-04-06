@@ -1,1 +1,2 @@
-export const SENDER_ADAPTER_PLACEHOLDER = 'sender-adapter';
+export * from './simulated-whatsapp-send.adapter';
+export * from './whatsapp-send.adapter';

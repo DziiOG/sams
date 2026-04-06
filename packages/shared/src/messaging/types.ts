@@ -28,6 +28,8 @@ export interface PublishMessageOptions<TPayload> {
 
 export interface ConsumedMessage<TPayload> extends MessagingEnvelope<TPayload> {
   deliveryTag: number;
+  retryCount: number;
+  headers: Record<string, unknown>;
 }
 
 export interface ConsumerControls {

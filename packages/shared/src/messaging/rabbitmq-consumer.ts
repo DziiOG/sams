@@ -62,16 +62,26 @@ export class RabbitMqConsumer {
           return;
         }
 
-        channel.ack(delivery);
-        settled = true;
+        try {
+          channel.ack(delivery);
+        } catch {
+          // ignore shutdown races while closing channels
+        } finally {
+          settled = true;
+        }
       },
       nack: async (requeue = false): Promise<void> => {
         if (settled) {
           return;
         }
 
-        channel.nack(delivery, false, requeue);
-        settled = true;
+        try {
+          channel.nack(delivery, false, requeue);
+        } catch {
+          // ignore shutdown races while closing channels
+        } finally {
+          settled = true;
+        }
       },
       retry: async (): Promise<void> => {
         if (settled) {
@@ -84,19 +94,28 @@ export class RabbitMqConsumer {
           return;
         }
 
-        channel.publish(options.exchange, options.routingKey, Buffer.from(JSON.stringify(parsed)), {
-          persistent: true,
-          contentType: 'application/json',
-          correlationId: parsed.metadata.correlationId,
-          timestamp: Date.parse(parsed.metadata.timestamp),
-          headers: {
-            ...(delivery.properties.headers ?? {}),
-            'x-retry-count': currentRetryCount + 1,
-          },
-        });
-        await channel.waitForConfirms();
-        channel.ack(delivery);
-        settled = true;
+        try {
+          channel.publish(options.exchange, options.routingKey, Buffer.from(JSON.stringify(parsed)), {
+            persistent: true,
+            contentType: 'application/json',
+            correlationId: parsed.metadata.correlationId,
+            timestamp: Date.parse(parsed.metadata.timestamp),
+            headers: {
+              ...(delivery.properties.headers ?? {}),
+              'x-retry-count': currentRetryCount + 1,
+            },
+          });
+          await channel.waitForConfirms();
+          channel.ack(delivery);
+        } catch {
+          try {
+            channel.nack(delivery, false, false);
+          } catch {
+            // ignore shutdown races while closing channels
+          }
+        } finally {
+          settled = true;
+        }
       },
     };
 
@@ -120,6 +139,8 @@ export class RabbitMqConsumer {
       payload: parsed.payload,
       metadata: parsed.metadata,
       deliveryTag: delivery.fields.deliveryTag,
+      retryCount: Number(delivery.properties.headers?.['x-retry-count'] ?? 0),
+      headers: (delivery.properties.headers ?? {}) as Record<string, unknown>,
     };
   }
 }

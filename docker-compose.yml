@@ -13,3 +13,80 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: sams-redis
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: sams-postgres
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_DB: sams
+      POSTGRES_USER: sams
+      POSTGRES_PASSWORD: sams
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U sams -d sams']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  gateway-service:
+    build:
+      context: .
+    command: ['pnpm', 'start:gateway']
+    env_file:
+      - ./packages/gateway-service/.env
+    ports:
+      - '3000:3000'
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    profiles: ['app']
+
+  orchestrator-service:
+    build:
+      context: .
+    command: ['pnpm', 'start:orchestrator']
+    env_file:
+      - ./packages/orchestrator-service/.env
+    ports:
+      - '3001:3001'
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    profiles: ['app']
+
+  sender-service:
+    build:
+      context: .
+    command: ['pnpm', 'start:sender']
+    env_file:
+      - ./packages/sender-service/.env
+    ports:
+      - '3002:3002'
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    profiles: ['app']
