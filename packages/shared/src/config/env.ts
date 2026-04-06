@@ -88,7 +88,6 @@ function ensureDotEnvLoaded(): void {
     ? [resolveEnvCandidate(explicitFile)]
     : [resolve(process.cwd(), '.env.local'), resolve(process.cwd(), '.env')];
   const loadKey = candidates.join('|');
-
   if (attemptedDotEnvLoads.has(loadKey)) {
     return;
   }
