@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "node16",
+    "ignoreDeprecations": "5.0",
+    "lib": ["ES2022"],
+    "strict": true,
+    "isolatedModules": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@sams/shared": ["packages/shared/src"],
+      "@sams/shared/*": ["packages/shared/src/*"],
+      "@sams/gateway-service/*": ["packages/gateway-service/src/*"],
+      "@sams/orchestrator-service/*": ["packages/orchestrator-service/src/*"],
+      "@sams/sender-service/*": ["packages/sender-service/src/*"],
+      "@sams/ai-service/*": ["services/ai-service/src/*"],
+      "@sams/memory-service/*": ["services/memory-service/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "coverage"]
+}

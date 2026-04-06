@@ -1,0 +1,11 @@
+{
+  "name": "@sams/integration-tests",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@sams/shared": "workspace:*"
+  }
+}
