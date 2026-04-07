@@ -1,0 +1,16 @@
+export enum ResultStatus {
+  Ok = 'Ok',
+  Created = 'Created',
+  Accepted = 'Accepted',
+  NoContent = 'NoContent',
+  BadRequest = 'BadRequest',
+  NotFound = 'NotFound',
+  Unauthorized = 'Unauthorized',
+  Forbidden = 'Forbidden',
+  Conflict = 'Conflict',
+  PaymentRequired = 'PaymentRequired',
+  FailedDependency = 'FailedDependency',
+  InternalError = 'InternalError',
+  Cancelled = 'Cancelled',
+  TooManyRequests = 'TooManyRequests',
+}

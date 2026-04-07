@@ -47,17 +47,20 @@ function applyBaseEnv(rabbitUrl: string, overrides: Record<string, string> = {})
   });
 }
 
-function buildWebhookPayload(messageText = "Send me today's summary"): Record<string, unknown> {
+function buildWebhookPayload(
+  messageText = "Send me today's summary",
+  senderId = '+15551234567',
+): Record<string, unknown> {
   return {
     entry: [
       {
         changes: [
           {
             value: {
-              contacts: [{ wa_id: '+15551234567', profile: { name: 'Sam Owner' } }],
+              contacts: [{ wa_id: senderId, profile: { name: 'Sam Owner' } }],
               messages: [
                 {
-                  from: '+15551234567',
+                  from: senderId,
                   id: 'wamid.inbound.1',
                   timestamp: '1712400000',
                   type: 'text',
@@ -218,6 +221,15 @@ describe('WhatsApp Phase 1 pipeline', () => {
       const inboundEvent = await inboundEventPromise;
 
       expect(response.status).toBe(202);
+      expect(response.body).toMatchObject({
+        message: 'Accepted',
+        code: 202,
+        data: {
+          status: 'accepted',
+          messageId: expect.any(String),
+          correlationId: 'wamid.inbound.1',
+        },
+      });
       expect(inboundEvent.channel).toBe('whatsapp');
       expect(inboundEvent.content).toBe("Send me today's summary");
       expect(inboundEvent.contact.phoneNumber).toBe('+15551234567');
@@ -225,6 +237,30 @@ describe('WhatsApp Phase 1 pipeline', () => {
       await gatewayApp.close();
       await consumer.close();
       await connectionManager.close();
+    }
+  }, 90000);
+
+  it('returns a forbidden response envelope when the sender is outside the owner allowlist', async () => {
+    applyBaseEnv(rabbitMq.url);
+
+    const gatewayApp = await createGatewayApp();
+    await gatewayApp.init();
+
+    try {
+      const payload = buildWebhookPayload('Ping from an unexpected sender', '+15550000000');
+      const response = await request(gatewayApp.getHttpServer())
+        .post('/webhook/whatsapp')
+        .set('x-hub-signature-256', signPayload(payload, 'phase1-secret'))
+        .set('content-type', 'application/json')
+        .send(payload);
+
+      expect(response.status).toBe(403);
+      expect(response.body).toMatchObject({
+        message: 'Sender +15550000000 is not allowed to interact with SAMS',
+        code: 403,
+      });
+    } finally {
+      await gatewayApp.close();
     }
   }, 90000);
 

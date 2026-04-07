@@ -1,4 +1,5 @@
-import { SenderNotAllowedError } from '../errors/sender-not-allowed.error';
+import { ResultStatus } from '@sams/shared';
+
 import type { InboundMessagePublisher } from '../ports/inbound-message.publisher';
 import { ProcessInboundMessageUseCase } from './process-inbound-message.use-case';
 
@@ -34,8 +35,13 @@ describe('ProcessInboundMessageUseCase', () => {
         }),
       }),
     );
-    expect(result.status).toBe('accepted');
-    expect(result.messageId).toEqual(expect.any(String));
+    expect(result.isSuccess).toBe(true);
+    expect(result.status).toBe(ResultStatus.Accepted);
+    expect(result.value).toMatchObject({
+      status: 'accepted',
+      messageId: expect.any(String),
+      correlationId: 'corr-789',
+    });
   });
 
   it('rejects senders outside the owner allowlist', async () => {
@@ -45,13 +51,16 @@ describe('ProcessInboundMessageUseCase', () => {
 
     const useCase = new ProcessInboundMessageUseCase(publisher, '+15551234567');
 
-    await expect(
-      useCase.execute({
-        channel: 'whatsapp',
-        senderId: '+15550000000',
-        content: 'Ping',
-        externalMessageId: 'wamid.456',
-      }),
-    ).rejects.toBeInstanceOf(SenderNotAllowedError);
+    const result = await useCase.execute({
+      channel: 'whatsapp',
+      senderId: '+15550000000',
+      content: 'Ping',
+      externalMessageId: 'wamid.456',
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.status).toBe(ResultStatus.Forbidden);
+    expect(result.error).toContain('+15550000000');
+    expect(publisher.publishInbound).not.toHaveBeenCalled();
   });
 });

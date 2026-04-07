@@ -1,8 +1,6 @@
 import {
-  BadRequestException,
   Body,
   Controller,
-  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -14,8 +12,14 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 
-import { SenderNotAllowedError } from '../../application/errors/sender-not-allowed.error';
+import {
+  ApiResponseFactory,
+  Result,
+  type ApiResponseEnvelope,
+} from '@sams/shared';
+
 import type {
+  ProcessInboundMessageCommand,
   ProcessInboundMessageResult,
 } from '../../application/use-cases/process-inbound-message.use-case';
 import { ProcessInboundMessageUseCase } from '../../application/use-cases/process-inbound-message.use-case';
@@ -60,20 +64,25 @@ export class WebhookController {
   @HttpCode(HttpStatus.ACCEPTED)
   public async handleWhatsAppWebhook(
     @Body() body: unknown,
-  ): Promise<ProcessInboundMessageResult> {
-    try {
-      const command = this.whatsAppWebhookAdapter.parse(body);
-      return await this.processInboundMessageUseCase.execute(command);
-    } catch (error) {
-      if (error instanceof SenderNotAllowedError) {
-        throw new ForbiddenException(error.message);
-      }
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiResponseEnvelope<ProcessInboundMessageResult>> {
+    const commandResult = this.whatsAppWebhookAdapter.parse(body);
 
-      if (error instanceof Error) {
-        throw new BadRequestException(error.message);
-      }
-
-      throw error;
+    if (commandResult.isFailure) {
+      return ApiResponseFactory.create(
+        Result.failure<ProcessInboundMessageResult>(
+          commandResult.error ?? 'Invalid WhatsApp webhook payload',
+          commandResult.status,
+          commandResult.errors,
+        ),
+        response,
+      );
     }
+
+    const result = await this.processInboundMessageUseCase.execute(
+      commandResult.value as ProcessInboundMessageCommand,
+    );
+
+    return ApiResponseFactory.create(result, response);
   }
 }

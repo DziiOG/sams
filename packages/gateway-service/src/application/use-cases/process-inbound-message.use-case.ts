@@ -1,11 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-import type { InboundWhatsAppMessageEvent } from '@sams/shared';
+import { Result, type InboundWhatsAppMessageEvent } from '@sams/shared';
 
 import { Contact } from '../../domain/contact.entity';
 import { Message } from '../../domain/message.entity';
 import { SessionWindow } from '../../domain/session-window.value-object';
-import { SenderNotAllowedError } from '../errors/sender-not-allowed.error';
 import type { InboundMessagePublisher } from '../ports/inbound-message.publisher';
 
 export interface ProcessInboundMessageCommand {
@@ -32,38 +31,56 @@ export class ProcessInboundMessageUseCase {
 
   public async execute(
     command: ProcessInboundMessageCommand,
-  ): Promise<ProcessInboundMessageResult> {
-    if (command.senderId !== this.ownerPhone) {
-      throw new SenderNotAllowedError(command.senderId);
+  ): Promise<Result<ProcessInboundMessageResult>> {
+    try {
+      if (command.senderId !== this.ownerPhone) {
+        return Result.forbidden(
+          `Sender ${command.senderId} is not allowed to interact with SAMS`,
+        );
+      }
+
+      const receivedAt = command.receivedAt ?? new Date();
+      let contact: Contact;
+      let sessionWindow: SessionWindow;
+      let message: Message;
+
+      try {
+        contact = Contact.create({
+          phoneNumber: command.senderId,
+          displayName: command.contactName,
+        });
+        sessionWindow = SessionWindow.open(receivedAt);
+        message = Message.create({
+          channel: command.channel,
+          senderId: contact.phoneNumber,
+          content: command.content,
+          correlationId: command.correlationId ?? randomUUID(),
+          receivedAt,
+        });
+      } catch (error) {
+        return Result.validationError(
+          error instanceof Error ? error.message : 'Inbound message validation failed',
+        );
+      }
+
+      await this.publisher.publishInbound(
+        this.buildEvent({
+          message,
+          contact,
+          sessionWindow,
+          externalMessageId: command.externalMessageId,
+          receivedAt,
+        }),
+      );
+
+      return Result.accepted({
+        status: 'accepted',
+        messageId: message.id,
+        correlationId: message.correlationId,
+      });
+    } catch {
+      return Result.serverError('Failed to process inbound message');
     }
-
-    const receivedAt = command.receivedAt ?? new Date();
-    const contact = Contact.create({
-      phoneNumber: command.senderId,
-      displayName: command.contactName,
-    });
-    const sessionWindow = SessionWindow.open(receivedAt);
-    const message = Message.create({
-      channel: command.channel,
-      senderId: contact.phoneNumber,
-      content: command.content,
-      correlationId: command.correlationId ?? randomUUID(),
-      receivedAt,
-    });
-
-    await this.publisher.publishInbound(this.buildEvent({
-      message,
-      contact,
-      sessionWindow,
-      externalMessageId: command.externalMessageId,
-      receivedAt,
-    }));
-
-    return {
-      status: 'accepted',
-      messageId: message.id,
-      correlationId: message.correlationId,
-    };
   }
 
   private buildEvent(input: {
