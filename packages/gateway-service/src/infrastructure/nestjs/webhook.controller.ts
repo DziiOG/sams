@@ -7,8 +7,8 @@ import {
   Inject,
   Post,
   Query,
+  Req,
   Res,
-  UseGuards,
 } from '@nestjs/common';
 import type { Response } from 'express';
 
@@ -25,7 +25,10 @@ import type {
 import { ProcessInboundMessageUseCase } from '../../application/use-cases/process-inbound-message.use-case';
 import { WhatsAppWebhookAdapter } from '../adapters/whatsapp-webhook.adapter';
 import { GATEWAY_RUNTIME_CONFIG, type GatewayRuntimeConfig } from '../config/gateway.tokens';
-import { WhatsAppHmacGuard } from '../guards/whatsapp-hmac.guard';
+import {
+  type RequestWithRawBody,
+  WhatsAppHmacGuard,
+} from '../guards/whatsapp-hmac.guard';
 
 @Controller('webhook')
 export class WebhookController {
@@ -36,6 +39,8 @@ export class WebhookController {
     private readonly whatsAppWebhookAdapter: WhatsAppWebhookAdapter,
     @Inject(GATEWAY_RUNTIME_CONFIG)
     private readonly runtimeConfig: GatewayRuntimeConfig,
+    @Inject(WhatsAppHmacGuard)
+    private readonly whatsAppHmacGuard: WhatsAppHmacGuard,
   ) {}
 
   @Get('whatsapp')
@@ -60,12 +65,25 @@ export class WebhookController {
   }
 
   @Post('whatsapp')
-  @UseGuards(WhatsAppHmacGuard)
   @HttpCode(HttpStatus.ACCEPTED)
   public async handleWhatsAppWebhook(
     @Body() body: unknown,
+    @Req() request: RequestWithRawBody,
     @Res({ passthrough: true }) response: Response,
   ): Promise<ApiResponseEnvelope<ProcessInboundMessageResult>> {
+    const signatureResult = this.whatsAppHmacGuard.validateRequest(request);
+
+    if (signatureResult.isFailure) {
+      return ApiResponseFactory.create(
+        Result.failure<ProcessInboundMessageResult>(
+          signatureResult.error ?? 'Unauthorized',
+          signatureResult.status,
+          signatureResult.errors,
+        ),
+        response,
+      );
+    }
+
     const commandResult = this.whatsAppWebhookAdapter.parse(body);
 
     if (commandResult.isFailure) {

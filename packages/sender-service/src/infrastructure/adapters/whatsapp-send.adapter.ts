@@ -1,5 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import { Result } from '@sams/shared';
+
 import type {
   DispatchOutboundMessageCommand,
   DispatchOutboundMessageResult,
@@ -16,29 +18,42 @@ export class WhatsAppSendAdapter implements OutboundMessageSender {
 
   public async send(
     command: DispatchOutboundMessageCommand,
-  ): Promise<DispatchOutboundMessageResult> {
+  ): Promise<Result<DispatchOutboundMessageResult>> {
     if (!this.runtimeConfig.whatsappToken || !this.runtimeConfig.whatsappPhoneNumberId) {
-      throw new Error('WhatsApp Cloud mode requires token and phone number id');
+      return Result.failedDependency('WhatsApp Cloud mode requires token and phone number id');
     }
 
     const targetUrl = `${this.runtimeConfig.whatsappApiBaseUrl.replace(/\/$/, '')}/${this.runtimeConfig.whatsappPhoneNumberId}/messages`;
 
     for (let attempt = 1; attempt <= 3; attempt += 1) {
-      const response = await fetch(targetUrl, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${this.runtimeConfig.whatsappToken}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: command.recipientPhone,
-          type: 'text',
-          text: {
-            body: command.messageText,
+      let response: globalThis.Response;
+
+      try {
+        response = await fetch(targetUrl, {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${this.runtimeConfig.whatsappToken}`,
+            'content-type': 'application/json',
           },
-        }),
-      });
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to: command.recipientPhone,
+            type: 'text',
+            text: {
+              body: command.messageText,
+            },
+          }),
+        });
+      } catch (error) {
+        if (attempt < 3) {
+          await new Promise((resolve) => setTimeout(resolve, attempt * 200));
+          continue;
+        }
+
+        return Result.failedDependency(
+          error instanceof Error ? error.message : 'WhatsApp Cloud API request failed',
+        );
+      }
 
       if ((response.status === 429 || response.status >= 500) && attempt < 3) {
         await new Promise((resolve) => setTimeout(resolve, attempt * 200));
@@ -46,20 +61,22 @@ export class WhatsAppSendAdapter implements OutboundMessageSender {
       }
 
       if (!response.ok) {
-        throw new Error(`WhatsApp Cloud API request failed with status ${response.status}`);
+        return Result.failedDependency(
+          `WhatsApp Cloud API request failed with status ${response.status}`,
+        );
       }
 
       const responseBody = (await response.json()) as {
         messages?: Array<{ id?: string }>;
       };
 
-      return {
+      return Result.success({
         status: 'sent',
         providerMessageId:
           responseBody.messages?.[0]?.id ?? `whatsapp-${command.correlationId}-${attempt}`,
-      };
+      });
     }
 
-    throw new Error('WhatsApp Cloud API request exhausted its retry budget');
+    return Result.failedDependency('WhatsApp Cloud API request exhausted its retry budget');
   }
 }

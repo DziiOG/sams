@@ -1,4 +1,10 @@
-import { Controller, Get, Inject } from '@nestjs/common';
+import { Controller, Get, Inject, Res } from '@nestjs/common';
+import type { Response } from 'express';
+
+import {
+  ApiResponseFactory,
+  type ApiResponseEnvelope,
+} from '@sams/shared';
 
 import { GetServiceStatusUseCase } from '../../application/use-cases/get-service-status.use-case';
 import type { ServiceStatus } from '../../domain/service-status';
@@ -11,7 +17,11 @@ export class HealthController {
   ) {}
 
   @Get()
-  public getHealth(): ServiceStatus {
-    return this.getServiceStatusUseCase.execute();
+  public async getHealth(
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<ApiResponseEnvelope<ServiceStatus>> {
+    const result = await this.getServiceStatusUseCase.execute();
+
+    return ApiResponseFactory.create(result, response);
   }
 }

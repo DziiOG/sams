@@ -1,3 +1,5 @@
+import type { Result } from '@sams/shared';
+
 export interface DispatchOutboundMessageCommand {
   correlationId: string;
   recipientPhone: string;
@@ -12,5 +14,5 @@ export interface DispatchOutboundMessageResult {
 }
 
 export interface OutboundMessageSender {
-  send: (command: DispatchOutboundMessageCommand) => Promise<DispatchOutboundMessageResult>;
+  send: (command: DispatchOutboundMessageCommand) => Promise<Result<DispatchOutboundMessageResult>>;
 }

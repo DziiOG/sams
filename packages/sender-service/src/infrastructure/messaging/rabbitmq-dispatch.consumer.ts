@@ -32,7 +32,11 @@ export class RabbitMqDispatchConsumer implements OnModuleInit, OnModuleDestroy {
       retryLimit: 2,
       handler: async (message, controls) => {
         try {
-          await this.dispatchOutboundMessageUseCase.execute(message.payload);
+          const result = await this.dispatchOutboundMessageUseCase.execute(message.payload);
+
+          if (result.isFailure) {
+            throw new Error(result.error ?? 'Unknown sender failure');
+          }
         } catch (error) {
           if (message.retryCount >= 2) {
             await this.producer.publish({

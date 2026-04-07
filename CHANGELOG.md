@@ -7,6 +7,7 @@
 - implemented orchestrator consumption, mock AI reply generation, and simulated approval relay
 - implemented sender dispatch with simulated and real WhatsApp Cloud API adapter modes
 - expanded integration coverage for webhook publish, orchestrator consume, sender dispatch, and end-to-end pipeline verification
+- migrated gateway, orchestrator, and sender public use-cases to a shared Result-based flow with `ApiResponseFactory` response envelopes
 
 ## 0.1.0 - 2026-04-06
 

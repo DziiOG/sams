@@ -240,6 +240,30 @@ describe('WhatsApp Phase 1 pipeline', () => {
     }
   }, 90000);
 
+  it('returns an unauthorized response envelope when the webhook signature is invalid', async () => {
+    applyBaseEnv(rabbitMq.url);
+
+    const gatewayApp = await createGatewayApp();
+    await gatewayApp.init();
+
+    try {
+      const payload = buildWebhookPayload();
+      const response = await request(gatewayApp.getHttpServer())
+        .post('/webhook/whatsapp')
+        .set('x-hub-signature-256', 'sha256=not-a-valid-signature')
+        .set('content-type', 'application/json')
+        .send(payload);
+
+      expect(response.status).toBe(401);
+      expect(response.body).toMatchObject({
+        message: 'Invalid WhatsApp webhook signature',
+        code: 401,
+      });
+    } finally {
+      await gatewayApp.close();
+    }
+  }, 90000);
+
   it('returns a forbidden response envelope when the sender is outside the owner allowlist', async () => {
     applyBaseEnv(rabbitMq.url);
 

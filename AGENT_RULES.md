@@ -20,6 +20,12 @@ This file is the authoritative governance guide for changes made inside the SAMS
    - Every published message must carry `correlationId` and `timestamp` metadata.
    - Raw `amqplib` usage must stay inside `packages/shared` only.
 
+4. **Result-based application flow is mandatory**
+   - Expected outcomes must not use exceptions in `application` or controller layers.
+   - Public use-case/service entry methods must return `Promise<Result<T>>` and use `try/catch`.
+   - Controllers must convert `Result<T>` values through the centralized `ApiResponseFactory`.
+   - The global exception path is a fallback for unexpected/system failures only.
+
 ## Code Rules
 
 1. **Use-case-first application design**

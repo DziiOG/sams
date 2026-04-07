@@ -1,3 +1,5 @@
+import { Result } from '@sams/shared';
+
 import { OutboundMessage } from '../../domain/outbound-message.entity';
 import type {
   DispatchOutboundMessageCommand,
@@ -10,9 +12,23 @@ export class DispatchOutboundMessageUseCase {
 
   public async execute(
     command: DispatchOutboundMessageCommand,
-  ): Promise<DispatchOutboundMessageResult> {
-    const outboundMessage = OutboundMessage.create(command);
+  ): Promise<Result<DispatchOutboundMessageResult>> {
+    let outboundMessage: OutboundMessage;
 
-    return this.sender.send(outboundMessage.toCommand());
+    try {
+      outboundMessage = OutboundMessage.create(command);
+    } catch (error) {
+      return Result.validationError(
+        error instanceof Error ? error.message : 'Outbound message validation failed',
+      );
+    }
+
+    try {
+      return await this.sender.send(outboundMessage.toCommand());
+    } catch (error) {
+      return Result.failedDependency(
+        error instanceof Error ? error.message : 'Failed to dispatch outbound message',
+      );
+    }
   }
 }

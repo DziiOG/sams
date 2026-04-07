@@ -29,7 +29,11 @@ export class RabbitMqInboundMessageConsumer implements OnModuleInit, OnModuleDes
       routingKey: MessagingRoutingKeys.inboundWhatsapp,
       retryLimit: 2,
       handler: async (message) => {
-        await this.orchestratePipelineUseCase.execute(message.payload);
+        const result = await this.orchestratePipelineUseCase.execute(message.payload);
+
+        if (result.isFailure) {
+          throw new Error(result.error ?? 'Failed to orchestrate inbound message');
+        }
       },
     });
   }

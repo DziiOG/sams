@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { loadSamsRuntimeConfig, RabbitMqConnectionManager, RabbitMqProducer } from '@sams/shared';
 
+import { GetServiceStatusUseCase } from '../../application/use-cases/get-service-status.use-case';
 import { ProcessInboundMessageUseCase } from '../../application/use-cases/process-inbound-message.use-case';
 import { WhatsAppWebhookAdapter } from '../adapters/whatsapp-webhook.adapter';
 import { GATEWAY_RUNTIME_CONFIG, type GatewayRuntimeConfig } from '../config/gateway.tokens';
@@ -30,6 +31,7 @@ import { WebhookController } from './webhook.controller';
       inject: [RabbitMqConnectionManager],
     },
     RabbitMqInboundMessagePublisher,
+    GetServiceStatusUseCase,
     WhatsAppWebhookAdapter,
     WhatsAppHmacGuard,
     {

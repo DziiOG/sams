@@ -1,4 +1,8 @@
-import type { DispatchCommand, InboundWhatsAppMessageEvent } from '@sams/shared';
+import {
+  ResultStatus,
+  type DispatchCommand,
+  type InboundWhatsAppMessageEvent,
+} from '@sams/shared';
 
 import type { AIProvider } from '../ports/ai-provider';
 import type { ApprovalRelay } from '../ports/approval-relay';
@@ -50,6 +54,53 @@ describe('OrchestratePipelineUseCase', () => {
         messageText: 'Suggested response',
       }),
     );
-    expect(result.status).toBe('dispatched');
+    expect(result.isSuccess).toBe(true);
+    expect(result.status).toBe(ResultStatus.Ok);
+    expect(result.value).toMatchObject({
+      status: 'dispatched',
+      correlationId: 'corr-123',
+      replySuggestion: {
+        messageText: 'Suggested response',
+      },
+    });
+  });
+
+  it('returns a validation result when the inbound event is invalid', async () => {
+    const aiProvider: AIProvider = {
+      generateReply: jest.fn(),
+    };
+    const approvalRelay: ApprovalRelay = {
+      requestApproval: jest.fn(),
+    };
+    const dispatchPublisher: DispatchPublisher = {
+      publishDispatch: jest.fn(),
+    };
+
+    const useCase = new OrchestratePipelineUseCase(aiProvider, approvalRelay, dispatchPublisher);
+
+    const result = await useCase.execute({
+      messageId: 'msg-1',
+      externalMessageId: 'wamid.1',
+      channel: 'whatsapp',
+      senderId: '+15551234567',
+      content: '',
+      correlationId: 'corr-123',
+      receivedAt: new Date().toISOString(),
+      contact: {
+        phoneNumber: '+15551234567',
+        displayName: 'Sam Owner',
+      },
+      sessionWindow: {
+        openedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+        isOpen: true,
+      },
+    });
+
+    expect(result.isFailure).toBe(true);
+    expect(result.status).toBe(ResultStatus.BadRequest);
+    expect(result.error).toContain('Inbound text is required');
+    expect(aiProvider.generateReply).not.toHaveBeenCalled();
+    expect(dispatchPublisher.publishDispatch).not.toHaveBeenCalled();
   });
 });

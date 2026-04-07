@@ -1,7 +1,8 @@
-import type {
-  DispatchCommand,
-  InboundWhatsAppMessageEvent,
-  ReplySuggestion,
+import {
+  Result,
+  type DispatchCommand,
+  type InboundWhatsAppMessageEvent,
+  type ReplySuggestion,
 } from '@sams/shared';
 
 import { ContextBundle } from '../../domain/context-bundle.value-object';
@@ -23,58 +24,82 @@ export class OrchestratePipelineUseCase {
     private readonly dispatchPublisher: DispatchPublisher,
   ) {}
 
-  public async execute(event: InboundWhatsAppMessageEvent): Promise<OrchestratePipelineResult> {
-    const context = ContextBundle.create({
-      correlationId: event.correlationId,
-      senderPhone: event.contact.phoneNumber,
-      inboundText: event.content,
-      sessionOpen: event.sessionWindow.isOpen,
-    });
+  public async execute(
+    event: InboundWhatsAppMessageEvent,
+  ): Promise<Result<OrchestratePipelineResult>> {
+    let context: ContextBundle;
 
-    const suggestionText = await this.aiProvider.generateReply(context);
-    const policyDecision = PolicyEngine.evaluate({
-      context,
-      suggestion: suggestionText,
-    });
-
-    const replySuggestion: ReplySuggestion = {
-      messageText: suggestionText,
-      requiresApproval: policyDecision.requiresApproval,
-      policyReason: policyDecision.reason,
-    };
-
-    const approvalResult = await this.approvalRelay.requestApproval({
-      correlationId: event.correlationId,
-      recipientPhone: event.contact.phoneNumber,
-      suggestion: replySuggestion.messageText,
-    });
-
-    if (approvalResult.status === 'rejected') {
-      return {
-        status: 'rejected',
+    try {
+      context = ContextBundle.create({
         correlationId: event.correlationId,
-        replySuggestion,
-      };
+        senderPhone: event.contact.phoneNumber,
+        inboundText: event.content,
+        sessionOpen: event.sessionWindow.isOpen,
+      });
+    } catch (error) {
+      return Result.validationError(
+        error instanceof Error ? error.message : 'Invalid inbound orchestration event',
+      );
     }
 
-    const dispatchCommand: DispatchCommand = {
-      correlationId: event.correlationId,
-      sourceMessageId: event.messageId,
-      recipientPhone: event.contact.phoneNumber,
-      messageText: approvalResult.editedReply ?? replySuggestion.messageText,
-      channel: 'whatsapp',
-      approvedBy: approvalResult.approvedBy,
-    };
+    try {
+      const suggestionText = await this.aiProvider.generateReply(context);
+      let policyDecision: ReturnType<typeof PolicyEngine.evaluate>;
 
-    await this.dispatchPublisher.publishDispatch(dispatchCommand);
+      try {
+        policyDecision = PolicyEngine.evaluate({
+          context,
+          suggestion: suggestionText,
+        });
+      } catch (error) {
+        return Result.validationError(
+          error instanceof Error ? error.message : 'Failed policy validation',
+        );
+      }
 
-    return {
-      status: 'dispatched',
-      correlationId: event.correlationId,
-      replySuggestion: {
-        ...replySuggestion,
-        messageText: dispatchCommand.messageText,
-      },
-    };
+      const replySuggestion: ReplySuggestion = {
+        messageText: suggestionText,
+        requiresApproval: policyDecision.requiresApproval,
+        policyReason: policyDecision.reason,
+      };
+
+      const approvalResult = await this.approvalRelay.requestApproval({
+        correlationId: event.correlationId,
+        recipientPhone: event.contact.phoneNumber,
+        suggestion: replySuggestion.messageText,
+      });
+
+      if (approvalResult.status === 'rejected') {
+        return Result.success({
+          status: 'rejected',
+          correlationId: event.correlationId,
+          replySuggestion,
+        });
+      }
+
+      const dispatchCommand: DispatchCommand = {
+        correlationId: event.correlationId,
+        sourceMessageId: event.messageId,
+        recipientPhone: event.contact.phoneNumber,
+        messageText: approvalResult.editedReply ?? replySuggestion.messageText,
+        channel: 'whatsapp',
+        approvedBy: approvalResult.approvedBy,
+      };
+
+      await this.dispatchPublisher.publishDispatch(dispatchCommand);
+
+      return Result.success({
+        status: 'dispatched',
+        correlationId: event.correlationId,
+        replySuggestion: {
+          ...replySuggestion,
+          messageText: dispatchCommand.messageText,
+        },
+      });
+    } catch (error) {
+      return Result.serverError(
+        error instanceof Error ? error.message : 'Failed to orchestrate inbound message',
+      );
+    }
   }
 }

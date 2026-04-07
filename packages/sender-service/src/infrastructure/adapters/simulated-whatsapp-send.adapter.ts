@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import { Result } from '@sams/shared';
+
 import type {
   DispatchOutboundMessageCommand,
   DispatchOutboundMessageResult,
@@ -10,14 +12,14 @@ import type {
 export class SimulatedWhatsAppSendAdapter implements OutboundMessageSender {
   public async send(
     command: DispatchOutboundMessageCommand,
-  ): Promise<DispatchOutboundMessageResult> {
+  ): Promise<Result<DispatchOutboundMessageResult>> {
     console.warn(
       `[sender:${command.correlationId}] Simulated WhatsApp delivery to ${command.recipientPhone}: ${command.messageText}`,
     );
 
-    return {
+    return Result.success({
       status: 'sent',
       providerMessageId: `simulated-${command.correlationId}`,
-    };
+    });
   }
 }
